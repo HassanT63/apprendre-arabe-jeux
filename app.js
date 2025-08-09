@@ -30,29 +30,39 @@ const LETTERS = [
   {ar:'ي', name:'ya',   file:'ya.mp3'}
 ];
 
-// ===== Audio utils (tolère fichiers manquants) =====
+// ===== Audio utils (mobile-friendly) =====
+let audioUnlocked = false;
+let dummy = null;
+function unlockAudio(){
+  try{
+    dummy = new Audio();
+    dummy.play().catch(()=>{});
+  }catch(e){}
+  audioUnlocked = true;
+  const gate = document.getElementById('audio-gate'); if(gate) gate.classList.remove('show');
+}
+function ensureGate(){ if(!audioUnlocked) document.getElementById('audio-gate').classList.add('show'); }
+
 function playLetterAudioByName(name){
-  const L = LETTERS.find(l => l.name === name);
-  if(!L) return;
+  const L = LETTERS.find(l => l.name === name); if(!L) return;
   const path = `assets/audio/${L.file}`;
   const a = new Audio(path);
   a.play().catch(()=>{});
 }
 function playLetterAudioByChar(ar){
-  const L = LETTERS.find(l => l.ar === ar);
-  if(!L) return;
+  const L = LETTERS.find(l => l.ar === ar); if(!L) return;
   playLetterAudioByName(L.name);
 }
 
-// ===== Profil & XP =====
-const STORE_KEY='kids_arabic_profile_audio_v2';
+// ===== Profil & Badges =====
+const STORE_KEY='kids_arabic_profile_mobile';
 function loadProfile(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY))||null; }catch(e){ return null; } }
 function saveProfile(p){ localStorage.setItem(STORE_KEY, JSON.stringify(p)); }
-function newProfile(avatar, name){ return { name, avatar, xp:0, level:1, badges:[], history:[] }; }
+function newProfile(avatar, name){ return { name, avatar, xp:0, level:1, badges:[] }; }
 function gainXP(p, amount=5){
   p.xp += amount;
   while (p.xp >= 100){ p.xp -= 100; p.level += 1; unlockBadge(p, `Niveau ${p.level}`, '🎉'); confetti(); }
-  saveProfile(p); renderProfile();
+  saveProfile(p); renderBadges();
 }
 function unlockBadge(p, title, emoji){
   if (!p.badges.some(b=>b.title===title)){ p.badges.push({title,emoji,date:new Date().toISOString()}); saveProfile(p); renderBadges(); }
@@ -60,12 +70,9 @@ function unlockBadge(p, title, emoji){
 
 // ===== UI Base =====
 const $ = sel => document.querySelector(sel);
-const screens = { home: $('#screen-home'), play: $('#screen-play'), badges: $('#screen-badges'), parents: $('#screen-parents') };
+const screens = { home: $('#home'), play: $('#play'), badges: $('#badges') };
 function show(id){ Object.values(screens).forEach(s=>s.classList.remove('show')); screens[id].classList.add('show'); window.scrollTo({top:0, behavior:'smooth'}); }
-$('#btn-home').onclick = ()=> show('home');
-$('#btn-play').onclick = ()=> show('play');
-$('#btn-badges').onclick = ()=> show('badges');
-$('#btn-parents').onclick = ()=> show('parents');
+document.querySelectorAll('.nav .btn').forEach(b=> b.onclick = ()=> show(b.dataset.screen));
 $('#btn-start').onclick = ()=> show('play');
 
 const modal = $('#modal'); const avatarsWrap = $('#avatars');
@@ -87,17 +94,12 @@ function buildAvatars(){
 $('#save-profile').onclick = ()=>{
   const name = $('#kid-name').value.trim() || 'Ami·e';
   const p = newProfile(selectedAvatar, name);
-  saveProfile(p); closeModal(); renderProfile(); confetti();
+  saveProfile(p); closeModal(); confetti();
 };
-function renderProfile(){
-  const p = loadProfile();
-  if(!p){ $('#profile-name').textContent = 'Invité'; $('#profile-level').textContent='1'; $('#profile-xp').style.width='0%'; return; }
-  $('#profile-name').textContent = p.name; $('#profile-level').textContent = p.level; $('#profile-xp').style.width = p.xp+'%';
-  const av = $('#profile-avatar'); av.style.background = avatarColors[p.avatar % avatarColors.length]; av.src = 'assets/avatar.svg';
-}
+
 function renderBadges(){
   const p = loadProfile(); const ul = $('#badges-list'); ul.innerHTML='';
-  if(!p || !p.badges.length){ ul.innerHTML='<li>Aucun badge… pour le moment !</li>'; return; }
+  if(!p || !p.badges.length){ ul.innerHTML='<li>Aucun badge pour le moment.</li>'; return; }
   p.badges.forEach(b=>{ const li=document.createElement('li'); li.innerHTML = `<span style="font-size:1.6rem">${b.emoji}</span> <strong>${b.title}</strong> <span style="color:#667">(${new Date(b.date).toLocaleDateString()})</span>`; ul.appendChild(li); });
 }
 
@@ -105,177 +107,152 @@ function renderBadges(){
 const gameArea = $('#game-area');
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
-// QUIZ (audio d'abord → choisir lettre)
+// GATE: audio unlock button
+const gateBtn = document.getElementById('unlock-audio');
+gateBtn.addEventListener('click', ()=> unlockAudio());
+
+// QUIZ (tap : écouter → choisir)
 function gameQuiz(){
+  ensureGate();
   gameArea.innerHTML = `
     <div class="card" style="padding:1rem">
-      <h3>🔈 Écoute et trouve la lettre</h3>
+      <h3>🔈 Écoute et trouve</h3>
       <div style="display:flex; gap:.5rem; align-items:center; margin:.4rem 0">
         <button class="btn" id="btn-play-sound">▶️ Écouter</button>
-        <label style="display:flex;align-items:center;gap:.3rem; font-size:.9rem">
-          Vitesse
-          <select id="speed">
-            <option value="1" selected>1x</option>
-            <option value="0.85">0.85x</option>
-            <option value="0.7">0.7x</option>
-          </select>
-        </label>
       </div>
       <div class="quiz-grid" id="quiz-choices"></div>
       <p id="quiz-feedback"></p>
-      <div id="note-quiz"></div>
+      <div id="note-quiz" class="inline-result"></div>
     </div>`;
-  let good=0, tries=0, current=null, lastAudio=null;
-  const choicesEl = $('#quiz-choices');
-  const feedback = $('#quiz-feedback');
-  const speedSel = $('#speed');
+  let good=0, tries=0, current=null;
 
-  function play(path){
-    if(!path) return;
-    const a = new Audio(path);
-    a.playbackRate = parseFloat(speedSel.value||'1') || 1;
-    a.play().catch(()=>{});
-    lastAudio = a;
-  }
+  function playNow(){ if(!current) return; playLetterAudioByName(current.name); }
+  function liveNote(){ const fautes = Math.max(0, tries-good), total = tries, note = total? Math.round((good/total)*20*100)/100 : 0; $('#note-quiz').innerHTML = `⭐ <strong>${good}</strong> bonnes · ❌ <strong>${fautes}</strong> fautes · 🎯 <strong>${total}</strong> tentatives — <strong>${note}/20</strong>`; }
 
   function next(){
     current = LETTERS[Math.floor(Math.random()*LETTERS.length)];
     const opts = new Set([current.ar]);
     while (opts.size<4) opts.add(LETTERS[Math.floor(Math.random()*LETTERS.length)].ar);
     const arr = [...opts]; shuffle(arr);
-    choicesEl.innerHTML='';
+    const choicesEl = $('#quiz-choices'); choicesEl.innerHTML='';
     arr.forEach(ar=>{
       const btn = document.createElement('button');
       btn.className='card choice'; btn.textContent=ar;
       btn.onclick=()=>{
         tries++;
-        if(ar===current.ar){
-          good++; feedback.textContent='✅ Bravo !'; btn.classList.add('good'); play(`assets/audio/${current.file}`); gainXP(loadProfile(),4);
-        }else{ feedback.textContent='❌ Essaie encore.'; btn.classList.add('bad'); }
-        liveNote('quiz', good, tries, 'note-quiz');
+        if(ar===current.ar){ good++; $('#quiz-feedback').textContent='✅ Bravo !'; btn.classList.add('good'); playNow(); }
+        else { $('#quiz-feedback').textContent='❌ Essaie encore.'; btn.classList.add('bad'); }
+        liveNote();
         setTimeout(next, 650);
       };
-      btn.onmouseenter = ()=> playLetterAudioByChar(ar);
+      btn.addEventListener('pointerdown', ()=> playLetterAudioByChar(ar));
       choicesEl.appendChild(btn);
     });
-    setTimeout(()=> play(`assets/audio/${current.file}`), 200);
   }
-  $('#btn-play-sound').onclick = ()=> current && play(`assets/audio/${current.file}`);
+  $('#btn-play-sound').onclick = playNow;
   next();
 }
 
-// MATCH (drag nom → lettre ; clic = jouer audio)
+// MATCH (mobile tap-to-pair)
 function gameMatch(){
   gameArea.innerHTML = `
     <div class="card" style="padding:1rem">
-      <h3>🧩 Associe nom ↔ lettre (avec audio)</h3>
+      <h3>🧩 Associe nom ↔ lettre (tap)</h3>
       <div class="match">
-        <div class="col" id="drag-src"></div>
-        <div class="col" id="drag-dst"></div>
+        <div class="col" id="col-names"></div>
+        <div class="col" id="col-letters"></div>
       </div>
       <p id="match-feedback"></p>
-      <div id="note-match"></div>
+      <div id="note-match" class="inline-result"></div>
     </div>`;
   const pick = shuffle(LETTERS.slice()).slice(0,6);
-  const src = $('#drag-src'), dst = $('#drag-dst'); src.innerHTML=''; dst.innerHTML='';
-  let good=0, tries=0;
+  const names = $('#col-names'), letters = $('#col-letters');
+  let selName=null, good=0, tries=0;
+
+  function liveNote(){ const fautes = Math.max(0, tries-good), total = tries, note = total? Math.round((good/total)*20*100)/100 : 0; $('#note-match').innerHTML = `⭐ <strong>${good}</strong> bonnes · ❌ <strong>${fautes}</strong> fautes · 🎯 <strong>${total}</strong> tentatives — <strong>${note}/20</strong>`; }
 
   pick.forEach(l=>{
-    const d=document.createElement('div'); d.className='draggable'; d.textContent=l.name; d.title='Écouter'; d.draggable=true; d.dataset.name=l.name;
-    d.onclick=()=> playLetterAudioByName(l.name);
-    src.appendChild(d);
-    const drop=document.createElement('div'); drop.className='drop'; drop.textContent=l.ar; drop.dataset.name=l.name;
-    drop.onclick=()=> playLetterAudioByName(l.name);
-    dst.appendChild(drop);
+    const n=document.createElement('button'); n.className='tap'; n.textContent=l.name; n.dataset.name=l.name;
+    n.onclick=()=>{ if(selName) selName.classList.remove('sel'); selName=n; n.classList.add('sel'); playLetterAudioByName(l.name); };
+    names.appendChild(n);
   });
-  [...src.children].forEach(d=> d.addEventListener('dragstart',e=> e.dataTransfer.setData('text', d.dataset.name)));
-  [...dst.children].forEach(drop=>{
-    drop.addEventListener('dragover',e=> e.preventDefault());
-    drop.addEventListener('drop',e=>{
-      e.preventDefault(); const name=e.dataTransfer.getData('text'); tries++;
-      if(name===drop.dataset.name){
-        good++; drop.textContent = drop.textContent+' ✔'; drop.style.borderColor='var(--success)';
-        const el = src.querySelector(`[data-name="${name}"]`); if(el) el.remove();
-        $('#match-feedback').textContent='✅ Bien joué !'; playLetterAudioByName(name); gainXP(loadProfile(),6);
-      } else { $('#match-feedback').textContent='❌ Dommage.'; }
-      liveNote('match', good, tries, 'note-match');
-      if(good===pick.length){ unlockBadge(loadProfile(), 'Maître des associations', '🧩'); }
-    });
+  shuffle(pick.slice()).forEach(l=>{
+    const b=document.createElement('button'); b.className='tap'; b.textContent=l.ar; b.dataset.name=l.name;
+    b.onclick=()=>{
+      tries++;
+      if(!selName){ $('#match-feedback').textContent='Choisis d’abord un nom.'; return; }
+      if(selName.dataset.name===b.dataset.name){
+        good++; $('#match-feedback').textContent='✅ Bien joué !'; selName.classList.add('ok'); b.classList.add('ok'); playLetterAudioByName(b.dataset.name);
+        selName.disabled=true; b.disabled=true; selName.classList.remove('sel'); selName=null;
+        const p = loadProfile(); if(p) gainXP(p,6);
+      } else {
+        $('#match-feedback').textContent='❌ Mauvaise paire.'; b.classList.add('bad'); setTimeout(()=> b.classList.remove('bad'), 600);
+      }
+      liveNote();
+    };
+    letters.appendChild(b);
   });
 }
 
-// TRACE (écoute + canvas)
+// TRACE (canvas : touch-action none + pointer events)
 function gameTrace(){
   gameArea.innerHTML = `
     <div class="card" style="padding:1rem">
-      <h3>✍️ Trace la lettre (avec audio)</h3>
+      <h3>✍️ Trace la lettre</h3>
       <div class="trace-wrap">
         <div class="guideline" id="trace-guide">ا</div>
-        <canvas id="trace-canvas" width="600" height="280"></canvas>
+        <canvas id="trace-canvas" width="600" height="320"></canvas>
       </div>
       <div style="display:flex; gap:.5rem; margin-top:.6rem">
         <button class="btn" id="trace-hear">Écouter</button>
         <button class="btn" id="trace-clear">Effacer</button>
         <button class="btn primary" id="trace-next">Lettre suivante</button>
       </div>
-      <p id="trace-feedback"></p>
-      <div id="note-trace"></div>
+      <div id="note-trace" class="inline-result"></div>
     </div>`;
   let idx = Math.floor(Math.random()*LETTERS.length);
   const guide = $('#trace-guide');
-  function setGuide(){ guide.textContent = LETTERS[idx].ar; playLetterAudioByName(LETTERS[idx].name); }
+  function setGuide(){ guide.textContent = LETTERS[idx].ar; if(audioUnlocked) playLetterAudioByName(LETTERS[idx].name); }
   setGuide();
 
   const cvs = $('#trace-canvas'), ctx = cvs.getContext('2d');
   let drawing=false;
-  cvs.addEventListener('pointerdown',e=>{ drawing=true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
-  cvs.addEventListener('pointermove',e=>{ if(!drawing) return; ctx.lineWidth=10; ctx.lineCap='round'; ctx.strokeStyle='#5b6dff'; ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); });
-  window.addEventListener('pointerup',()=> drawing=false);
-  $('#trace-clear').onclick=()=> ctx.clearRect(0,0,cvs.width,cvs.height);
-  $('#trace-next').onclick=()=>{ idx = (idx+1)%LETTERS.length; setGuide(); ctx.clearRect(0,0,cvs.width,cvs.height); gainXP(loadProfile(),5); $('#trace-feedback').textContent='✨ Super !'; liveNote('trace',(window.__good_trace||0)+1,(window.__tries_trace||0)+1,'note-trace'); };
-  $('#trace-hear').onclick = ()=> playLetterAudioByName(LETTERS[idx].name);
-}
+  cvs.addEventListener('pointerdown',e=>{ drawing=true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); e.preventDefault(); });
+  cvs.addEventListener('pointermove',e=>{ if(!drawing) return; ctx.lineWidth=10; ctx.lineCap='round'; ctx.strokeStyle='#5b6dff'; ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); e.preventDefault(); });
+  window.addEventListener('pointerup',()=> drawing=false, {passive:false});
 
-// ===== Notes live + suivi simple =====
-function liveNote(kind, good, tries, boxId){
-  window['__good_'+kind] = good;
-  window['__tries_'+kind] = tries;
-  const hostSel = '#game-area';
-  const host = document.querySelector(hostSel);
-  let box = document.getElementById(boxId);
-  if(!box){ box = document.createElement('div'); box.id=boxId; box.className='inline-result'; box.style.marginTop='.6rem'; box.style.padding='.7rem .9rem'; box.style.background='#f8fbff'; box.style.border='1px solid #e6e9ff'; box.style.borderRadius='12px'; host.appendChild(box); }
-  const fautes = Math.max(0, tries-good), total = tries, note20 = total ? Math.round((good/total)*20*100)/100 : 0;
-  box.innerHTML = `⭐ <strong>${good}</strong> bonnes · ❌ <strong>${fautes}</strong> fautes · 🎯 <strong>${total}</strong> tentatives — <strong>${note20}/20</strong>`;
-  if (tries>0 && tries%20===0){
-    record(kind, note20, good, fautes, total);
-  }
-}
-function record(kind, note20, good, wrong, total){
-  const p = loadProfile(); if(!p) return;
-  const titles = {quiz:'Trouve la lettre (audio)', match:'Associe (audio)', trace:'Trace (audio)'};
-  p.history.push({ quizId:kind, title:titles[kind]||kind, note20, good, wrong, total, dateISO:new Date().toISOString() });
-  saveProfile(p);
+  $('#trace-clear').onclick=()=> ctx.clearRect(0,0,cvs.width, cvs.height);
+  let good=0, tries=0;
+  function liveNote(){ const fautes = Math.max(0, tries-good), total = tries, note = total? Math.round((good/total)*20*100)/100 : 0; $('#note-trace').innerHTML = `⭐ <strong>${good}</strong> bonnes · ❌ <strong>${fautes}</strong> fautes · 🎯 <strong>${total}</strong> tentatives — <strong>${note}/20</strong>`; }
+  $('#trace-next').onclick=()=>{ idx = (idx+1)%LETTERS.length; setGuide(); ctx.clearRect(0,0,cvs.width,cvs.height); good++; tries++; liveNote(); };
+  $('#trace-hear').onclick = ()=> playLetterAudioByName(LETTERS[idx].name);
 }
 
 // ===== Confetti mini =====
 function confetti(){
   const root = document.getElementById('confetti');
-  const n = 30;
+  const n = 24;
   for(let i=0;i<n;i++){
     const s = document.createElement('span');
     s.textContent='•'; s.style.position='absolute'; s.style.left=(Math.random()*100)+'%';
     s.style.top='-10px'; s.style.fontSize=(8+Math.random()*18)+'px';
     s.style.color = ['#5b6dff','#8a9bff','#ff8fab','#ffd166','#06d6a0'][Math.floor(Math.random()*5)];
-    s.style.transition='transform 1.4s ease, opacity 1.4s ease';
+    s.style.transition='transform 1.2s ease, opacity 1.2s ease';
     root.appendChild(s);
     requestAnimationFrame(()=>{ s.style.transform = `translateY(${window.innerHeight}px) translateX(${(Math.random()*80-40)}px)`; s.style.opacity='0'; });
-    setTimeout(()=> s.remove(), 1600);
+    setTimeout(()=> s.remove(), 1400);
   }
 }
 
 // ===== Nav & init =====
 document.querySelectorAll('.game').forEach(btn=> btn.onclick = ()=>{ show('play'); const game = btn.dataset.game; if(game==='quiz') gameQuiz(); if(game==='match') gameMatch(); if(game==='trace') gameTrace(); });
-$('#btn-export').onclick = ()=>{ const p = loadProfile(); $('#export-json').value = JSON.stringify(p||{}, null, 2); };
-$('#btn-reset').onclick = ()=>{ localStorage.removeItem(STORE_KEY); location.reload(); };
-function renderProfileInit(){ const p = loadProfile(); if(!p) openModal(); renderProfile(); renderBadges(); }
-document.addEventListener('DOMContentLoaded', ()=>{ buildAvatars(); renderProfileInit(); });
+function renderProfileInit(){ const p = loadProfile(); if(!p) openModal(); renderBadges(); }
+document.addEventListener('DOMContentLoaded', ()=>{
+  // boutons nav
+  document.querySelectorAll('.nav .btn').forEach(b=> b.addEventListener('click', ()=> show(b.dataset.screen)));
+  // gate audio
+  const gateBtn = document.getElementById('unlock-audio');
+  if (gateBtn) gateBtn.addEventListener('click', unlockAudio);
+  // profil & badges
+  buildAvatars(); renderProfileInit();
+});
