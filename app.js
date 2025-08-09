@@ -8,7 +8,7 @@ const LETTERS = [
   {ar:'ح', name:'hha',  file:'hha.mp3'},
   {ar:'خ', name:'kha',  file:'kha.mp3'},
   {ar:'د', name:'daal', file:'daal.mp3'},
-  {ar:'ذ', name:'dhal', file:'dhal.mp3'},
+  {ar:'ذ', name:'dhal', file:'dhal.mp3'},   // accepte aussi thaal.mp3 (copie)
   {ar:'ر', name:'ra',   file:'ra.mp3'},
   {ar:'ز', name:'zay',  file:'zay.mp3'},
   {ar:'س', name:'siin', file:'siin.mp3'},
@@ -34,27 +34,21 @@ const LETTERS = [
 let audioUnlocked = false;
 let dummy = null;
 function unlockAudio(){
-  try{
-    dummy = new Audio();
-    dummy.play().catch(()=>{});
-  }catch(e){}
+  try{ dummy = new Audio(); dummy.play().catch(()=>{}); }catch(e){}
   audioUnlocked = true;
   const gate = document.getElementById('audio-gate'); if(gate) gate.classList.remove('show');
 }
 function ensureGate(){ if(!audioUnlocked) document.getElementById('audio-gate').classList.add('show'); }
-
 function playLetterAudioByName(name){
   const L = LETTERS.find(l => l.name === name); if(!L) return;
-  const path = `assets/audio/${L.file}`;
-  const a = new Audio(path);
-  a.play().catch(()=>{});
+  new Audio(`assets/audio/${L.file}`).play().catch(()=>{});
 }
 function playLetterAudioByChar(ar){
   const L = LETTERS.find(l => l.ar === ar); if(!L) return;
   playLetterAudioByName(L.name);
 }
 
-// ===== Profil & Badges =====
+// ===== Profil & Badges (léger) =====
 const STORE_KEY='kids_arabic_profile_mobile';
 function loadProfile(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY))||null; }catch(e){ return null; } }
 function saveProfile(p){ localStorage.setItem(STORE_KEY, JSON.stringify(p)); }
@@ -84,8 +78,7 @@ let selectedAvatar = 0;
 function buildAvatars(){
   avatarsWrap.innerHTML='';
   avatarColors.forEach((c,i)=>{
-    const d=document.createElement('div');
-    d.className='a'; d.style.background=c;
+    const d=document.createElement('div'); d.className='a'; d.style.background=c;
     d.onclick=()=>{ selectedAvatar=i; document.querySelectorAll('.avatars .a').forEach(n=>n.classList.remove('sel')); d.classList.add('sel'); };
     if(i===0) d.classList.add('sel');
     avatarsWrap.appendChild(d);
@@ -248,11 +241,7 @@ function confetti(){
 document.querySelectorAll('.game').forEach(btn=> btn.onclick = ()=>{ show('play'); const game = btn.dataset.game; if(game==='quiz') gameQuiz(); if(game==='match') gameMatch(); if(game==='trace') gameTrace(); });
 function renderProfileInit(){ const p = loadProfile(); if(!p) openModal(); renderBadges(); }
 document.addEventListener('DOMContentLoaded', ()=>{
-  // boutons nav
   document.querySelectorAll('.nav .btn').forEach(b=> b.addEventListener('click', ()=> show(b.dataset.screen)));
-  // gate audio
-  const gateBtn = document.getElementById('unlock-audio');
-  if (gateBtn) gateBtn.addEventListener('click', unlockAudio);
-  // profil & badges
+  const gateBtn = document.getElementById('unlock-audio'); if (gateBtn) gateBtn.addEventListener('click', unlockAudio);
   buildAvatars(); renderProfileInit();
 });
