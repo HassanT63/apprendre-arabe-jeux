@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apprendre l'arabe – Enfants (Audio)</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/logo.svg" alt="logo" class="logo">
+      <span>Arabe – enfants</span>
+    </div>
+    <nav class="nav">
+      <button class="btn small" id="btn-home">Accueil</button>
+      <button class="btn small" id="btn-play">Jouer</button>
+      <button class="btn small" id="btn-badges">Badges</button>
+      <button class="btn small" id="btn-parents">Parents</button>
+      <div class="profile" id="profile-pill">
+        <img id="profile-avatar" class="avatar" alt="avatar">
+        <span id="profile-name"></span>
+        <span class="lvl">Lvl <span id="profile-level">1</span></span>
+        <div class="xpbar"><div id="profile-xp" class="xp"></div></div>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section id="screen-home" class="screen show">
+      <div class="hero">
+        <h1>Bienvenue 👋</h1>
+        <p>Apprends à <strong>lire</strong> et <strong>écrire</strong> l'arabe en jouant. <span class="hint">Avec audio !</span></p>
+        <button class="btn primary jumbo" id="btn-start">Commencer</button>
+      </div>
+      <div class="worlds">
+        <div class="world-card">
+          <img src="assets/world-alphabet.svg" alt="Alphabet">
+          <h3>Alphabet</h3>
+          <p>Écoute chaque lettre.</p>
+        </div>
+        <div class="world-card">
+          <img src="assets/world-vowels.svg" alt="Voyelles">
+          <h3>Voyelles</h3>
+          <p>Associe sons et lettres.</p>
+        </div>
+        <div class="world-card">
+          <img src="assets/world-write.svg" alt="Écriture">
+          <h3>Écriture</h3>
+          <p>Trace et écoute la lettre.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-play" class="screen">
+      <h2>Choisis un jeu 🎮</h2>
+      <div class="games">
+        <button class="card game" data-game="quiz"><span class="emoji">🔤</span><span class="title">Écoute & trouve</span><span class="desc">Écoute → choisis la lettre.</span></button>
+        <button class="card game" data-game="match"><span class="emoji">🧩</span><span class="title">Associe lettre ↔ nom</span><span class="desc">Fais glisser pour associer.</span></button>
+        <button class="card game" data-game="trace"><span class="emoji">✍️</span><span class="title">Trace la lettre</span><span class="desc">Trace et écoute.</span></button>
+      </div>
+      <div id="game-area" class="game-area"></div>
+    </section>
+
+    <section id="screen-badges" class="screen">
+      <h2>Mes badges 🏅</h2>
+      <ul id="badges-list" class="badges"></ul>
+    </section>
+
+    <section id="screen-parents" class="screen">
+      <h2>Espace parents 🔐</h2>
+      <div class="parents">
+        <button class="btn" id="btn-export">Exporter le suivi (JSON)</button>
+        <button class="btn danger" id="btn-reset">Réinitialiser</button>
+        <textarea id="export-json" placeholder="JSON de progression…" readonly></textarea>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal hidden" aria-hidden="true" role="dialog">
+    <div class="modal-box">
+      <h3>Crée ton profil</h3>
+      <p>Choisis un avatar et ton prénom (ou pseudo).</p>
+      <div class="avatars" id="avatars"></div>
+      <input id="kid-name" class="input" type="text" placeholder="Prénom ou pseudo">
+      <div class="modal-actions">
+        <button class="btn" id="cancel-profile">Annuler</button>
+        <button class="btn primary" id="save-profile">C'est parti !</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confetti"></div>
+  <script src="app.js"></script>
+</body>
+</html>
