@@ -188,15 +188,15 @@ function gameMatch(){
 }
 
 // TRACE (canvas : touch-action none + pointer events)
-function gameTrace(){function gameTrace(){
+function gameTrace(){
   gameArea.innerHTML = `
     <div class="card" style="padding:1rem">
       <h3>✍️ Trace la lettre</h3>
       <div class="trace-wrap">
         <div class="guideline" id="trace-guide">ا</div>
-        <canvas id="trace-canvas"></canvas>
+        <canvas id="trace-canvas" width="600" height="320"></canvas>
       </div>
-      <div style="display:flex; gap:.5rem; margin-top:.6rem; flex-wrap:wrap">
+      <div style="display:flex; gap:.5rem; margin-top:.6rem">
         <button class="btn" id="trace-hear">Écouter</button>
         <button class="btn" id="trace-clear">Effacer</button>
         <button class="btn primary" id="trace-next">Lettre suivante</button>
@@ -209,32 +209,9 @@ function gameTrace(){function gameTrace(){
   setGuide();
 
   const cvs = $('#trace-canvas'), ctx = cvs.getContext('2d');
-
-  function resizeCanvas(){
-    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const targetH = Math.max(340, Math.min(window.innerHeight * (window.innerWidth < 640 ? 0.6 : 0.5), 600));
-    cvs.style.width = '100%';
-    cvs.style.height = targetH + 'px';
-    const rect = cvs.getBoundingClientRect();
-    cvs.width  = Math.round(rect.width * dpr);
-    cvs.height = Math.round(rect.height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.lineWidth = 8;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#5b6dff';
-  }
-  requestAnimationFrame(resizeCanvas);
-  window.addEventListener('resize', resizeCanvas);
-
   let drawing=false;
-  function posFromEvent(e){
-    const rect = cvs.getBoundingClientRect();
-    const x = (e.clientX - rect.left);
-    const y = (e.clientY - rect.top);
-    return {x, y};
-  }
-  cvs.addEventListener('pointerdown',e=>{ drawing=true; const {x,y}=posFromEvent(e); ctx.beginPath(); ctx.moveTo(x,y); e.preventDefault(); });
-  cvs.addEventListener('pointermove',e=>{ if(!drawing) return; const {x,y}=posFromEvent(e); ctx.lineTo(x,y); ctx.stroke(); e.preventDefault(); }, {passive:false});
+  cvs.addEventListener('pointerdown',e=>{ drawing=true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); e.preventDefault(); });
+  cvs.addEventListener('pointermove',e=>{ if(!drawing) return; ctx.lineWidth=10; ctx.lineCap='round'; ctx.strokeStyle='#5b6dff'; ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); e.preventDefault(); });
   window.addEventListener('pointerup',()=> drawing=false, {passive:false});
 
   $('#trace-clear').onclick=()=> ctx.clearRect(0,0,cvs.width, cvs.height);
